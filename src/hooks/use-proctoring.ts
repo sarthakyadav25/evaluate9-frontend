@@ -13,39 +13,37 @@ interface UseProctoringProps {
 export function useProctoring({ socket, isExamActive }: UseProctoringProps) {
   const router = useRouter();
   const [violationCount, setViolationCount] = useState(0);
-  const [warnings, setWarnings] = useState<string[]>([]);
 
-  // --- 1. Violation Reporter ---
+  // --- 1. Violation Reporter (Now Exported) ---
   const reportViolation = useCallback((type: "TAB_SWITCH" | "NO_FACE" | "MULTIPLE_FACES") => {
     if (!socket || !isExamActive) return;
 
-    console.warn(`[Proctor] Violation Detected: ${type}`);
-    
     // Emit to Backend
     socket.emit("report_violation", { type });
 
-    // Optimistic UI Feedback (Immediate Warning)
+    // UI Feedback
+    const messages = {
+        TAB_SWITCH: "Tab switching detected. Please stay on this screen.",
+        NO_FACE: "Face not found. Please look at the camera.",
+        MULTIPLE_FACES: "Multiple faces detected. Ensure you are alone."
+    };
+
     toast.warning("Proctoring Alert", {
-        description: type === "TAB_SWITCH" 
-            ? "Tab switching is monitored. Please stay on this screen." 
-            : "Please keep your face visible in the camera frame.",
+        description: messages[type],
         duration: 4000,
     });
   }, [socket, isExamActive]);
 
-  // --- 2. Event Listeners (Tab Switch & Blur) ---
+  // --- 2. Tab & Blur Listeners ---
   useEffect(() => {
     if (!isExamActive) return;
 
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        reportViolation("TAB_SWITCH");
-      }
+      if (document.hidden) reportViolation("TAB_SWITCH");
     };
 
     const handleBlur = () => {
-      // Optional: Strict mode triggers on simple focus loss
-      // reportViolation("TAB_SWITCH"); 
+       // Optional: reportViolation("TAB_SWITCH");
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -57,29 +55,16 @@ export function useProctoring({ socket, isExamActive }: UseProctoringProps) {
     };
   }, [isExamActive, reportViolation]);
 
-  // --- 3. Socket Listeners (Server Consequences) ---
+  // --- 3. Socket Listeners ---
   useEffect(() => {
     if (!socket) return;
 
-    // Warning from Server (Syncs count)
     socket.on("proctor_warning", (data: { message: string; count: number; max: number }) => {
         setViolationCount(data.count);
-        setWarnings((prev) => [...prev, data.message]);
-        
-        toast.error(`Strike ${data.count}/${data.max}`, {
-            description: data.message,
-            duration: 5000,
-        });
+        toast.error(`Strike ${data.count}/${data.max}`, { description: data.message });
     });
 
-    // Termination (The Ban Hammer)
     socket.on("exam_terminated", (data: { reason: string }) => {
-        toast.error("Exam Terminated", {
-            description: data.reason,
-            duration: 10000,
-        });
-        
-        // Force redirect to disqualification page
         router.push(`/exam/terminated?reason=${encodeURIComponent(data.reason)}`);
     });
 
@@ -91,6 +76,6 @@ export function useProctoring({ socket, isExamActive }: UseProctoringProps) {
 
   return {
     violationCount,
-    warnings
+    reportViolation // <--- Exported
   };
 }

@@ -14,6 +14,8 @@ export function useExamSocket() {
   const [isConnected, setIsConnected] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isFinished, setIsFinished] = useState(false);
+  // NEW: State to hold restored progress
+  const [resumeData, setResumeData] = useState<{ answers: Record<string, string>, index: number } | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("examToken");
@@ -35,20 +37,19 @@ export function useExamSocket() {
 
     socketInstance.on("disconnect", () => setIsConnected(false));
 
-    // --- NEW: Receive ALL questions at once ---
-    // Backend needs to emit this instead of 'receive_message'
-    socketInstance.on("init_questions", (data: { questions: Question[] }) => {
-        console.log("Received Questions:", data.questions);
+    // --- UPDATED: Handle Init & Resume ---
+    socketInstance.on("init_questions", (data: { 
+        questions: Question[], 
+        savedAnswers?: Record<string, string>, 
+        savedIndex?: number 
+    }) => {
         setQuestions(data.questions);
-    });
-
-    // Fallback: If backend still sends one-by-one (Legacy support)
-    // We treat it as a single question array for now
-    socketInstance.on("receive_message", (data) => {
-        if(data.sender === 'AI') {
-            setQuestions(prev => {
-                if(prev.length === 0) return [{ id: "1", content: data.message }];
-                return prev;
+        
+        // If the server sent back saved progress, store it
+        if (data.savedAnswers || typeof data.savedIndex === 'number') {
+            setResumeData({
+                answers: data.savedAnswers || {},
+                index: data.savedIndex || 0
             });
         }
     });
@@ -58,6 +59,10 @@ export function useExamSocket() {
         toast.success("Exam Submitted Successfully!");
     });
 
+    socketInstance.on("error", (data: { message: string }) => {
+        toast.error("System Error", { description: data.message });
+    });
+
     setSocket(socketInstance);
 
     return () => {
@@ -65,15 +70,16 @@ export function useExamSocket() {
     };
   }, []);
 
-  // --- Batch Submission ---
+  // --- NEW: Sync Progress Action ---
+  const syncProgress = useCallback((questionId: string, answer: string, nextIndex: number) => {
+      if (!socket) return;
+      socket.emit("save_progress", { questionId, answer, index: nextIndex });
+  }, [socket]);
+
   const submitExam = useCallback((answers: Record<string, string>) => {
     if (!socket) return;
-    
-    // Emit the new batch event
     socket.emit("submit_batch", { answers });
-    
-    // Optimistic finish
-    setIsFinished(true);
+    setIsFinished(true); // Optimistic
   }, [socket]);
 
   return {
@@ -81,6 +87,8 @@ export function useExamSocket() {
     isConnected,
     questions,
     submitExam,
-    isFinished
+    isFinished,
+    resumeData, // <--- Exported
+    syncProgress // <--- Exported
   };
 }
