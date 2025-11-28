@@ -9,8 +9,8 @@ import {
   FileText,
   Users,
   Settings,
-  ShieldAlert,
-  CreditCard // <--- New Import
+  Shield, // <--- Changed from ShieldAlert
+  CreditCard
 } from "lucide-react";
 
 const sidebarItems = [
@@ -30,12 +30,12 @@ const sidebarItems = [
     icon: Users,
   },
   {
-    title: "Proctoring Logs",
+    title: "Proctoring Settings", // <--- Renamed
     href: "/dashboard/proctoring",
-    icon: ShieldAlert,
+    icon: Shield, // <--- New Icon
   },
   {
-    title: "Billing", // <--- New Item
+    title: "Billing",
     href: "/dashboard/billing",
     icon: CreditCard,
   },
