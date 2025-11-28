@@ -7,11 +7,11 @@ import { format } from "date-fns";
 import { 
     ArrowLeft, 
     Calendar, 
-    Clock, 
     Copy, 
     MoreHorizontal, 
     ShieldAlert, 
-    User 
+    User,
+    FileText
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 import { AddCandidateModal } from "@/components/candidates/add-candidate-modal";
 import { toast } from "sonner";
@@ -54,21 +55,16 @@ export default function TestDetailsPage() {
   const [testTitle, setTestTitle] = useState("Loading Test...");
   const [loading, setLoading] = useState(true);
 
-  // Fetch Data
   const fetchData = async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
     const token = localStorage.getItem("token");
 
     try {
-        // 1. Get Candidates (using the listCandidates endpoint)
-        // Backend: router.get('/candidates/:testId', CandidateController.listCandidates);
         const candidatesRes = await axios.get(`${apiUrl}/admin/candidates/${testId}`, {
             headers: { Authorization: `Bearer ${token}` }
         });
         setCandidates(candidatesRes.data.data);
 
-        // 2. Get Test Info (We iterate getTests since getTestById isn't exposed in backend routes v1)
-        // Note: For production, add GET /admin/tests/:id to backend.
         const testsRes = await axios.get(`${apiUrl}/admin/tests`, {
             headers: { Authorization: `Bearer ${token}` }
         });
@@ -87,13 +83,8 @@ export default function TestDetailsPage() {
     if (testId) fetchData();
   }, [testId]);
 
+  // --- Function Definition ---
   const copyMagicLink = (accessKey: string) => {
-      // Reconstruct link based on backend logic
-      const link = `${window.location.origin}/exam/${accessKey}`; // Assuming frontend handles redirect
-      // OR specifically if backend returns it, but listCandidates doesn't return magicLink string directly,
-      // it returns candidate object. So we construct it:
-      
-      // We know the pattern: /exam/{accessKey}
       const fullLink = `${window.location.origin}/exam/${accessKey}`;
       navigator.clipboard.writeText(fullLink);
       toast.success("Magic Link copied!");
@@ -139,9 +130,15 @@ export default function TestDetailsPage() {
                       </TableRow>
                   ) : (
                       candidates.map((session) => (
-                          <TableRow key={session.id} className="border-zinc-800 hover:bg-zinc-800/50">
+                          <TableRow 
+                            key={session.id} 
+                            className="border-zinc-800 hover:bg-zinc-800/50 cursor-pointer group"
+                            onClick={() => router.push(`/dashboard/candidates/${session.id}`)}
+                          >
                               <TableCell>
-                                  <div className="font-medium text-white">{session.candidate.name}</div>
+                                  <div className="font-medium text-white group-hover:text-violet-400 transition-colors">
+                                    {session.candidate.name}
+                                  </div>
                                   <div className="text-xs text-zinc-500">{session.candidate.email}</div>
                               </TableCell>
                               <TableCell>
@@ -162,12 +159,25 @@ export default function TestDetailsPage() {
                               <TableCell className="text-right">
                                   <DropdownMenu>
                                       <DropdownMenuTrigger asChild>
-                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white">
+                                          <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            className="h-8 w-8 text-zinc-400 hover:text-white"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
                                               <MoreHorizontal className="h-4 w-4" />
                                           </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end" className="bg-zinc-950 border-zinc-800 text-zinc-300">
-                                          <DropdownMenuItem onClick={() => copyLinkInternal(session.candidate.accessKey)}>
+                                          
+                                          <DropdownMenuItem onClick={() => router.push(`/dashboard/candidates/${session.id}`)}>
+                                              <FileText className="mr-2 h-4 w-4 text-violet-400" /> View Analysis
+                                          </DropdownMenuItem>
+                                          
+                                          <DropdownMenuSeparator className="bg-zinc-800" />
+                                          
+                                          {/* --- FIXED: Correct Function Name --- */}
+                                          <DropdownMenuItem onClick={() => copyMagicLink(session.candidate.accessKey)}>
                                               <Copy className="mr-2 h-4 w-4" /> Copy Magic Link
                                           </DropdownMenuItem>
                                           <DropdownMenuItem className="text-red-400 hover:text-red-300">
@@ -184,16 +194,8 @@ export default function TestDetailsPage() {
       </div>
     </div>
   );
-  
-  function copyLinkInternal(key: string) {
-      // NOTE: This assumes your exam page is at /exam/[accessKey]
-      const url = `${window.location.origin}/exam/${key}`;
-      navigator.clipboard.writeText(url);
-      toast.success("Link copied to clipboard");
-  }
 }
 
-// Sub-component for Status Colors
 function StatusBadge({ status }: { status: string }) {
     const styles: Record<string, string> = {
         SCHEDULED: "bg-blue-500/10 text-blue-400 border-blue-500/20",

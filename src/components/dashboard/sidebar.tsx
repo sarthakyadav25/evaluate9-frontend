@@ -3,14 +3,14 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils"; // shadcn utility
+import { cn } from "@/lib/utils"; 
 import {
   LayoutDashboard,
   FileText,
   Users,
   Settings,
   ShieldAlert,
-  LogOut
+  CreditCard // <--- New Import
 } from "lucide-react";
 
 const sidebarItems = [
@@ -33,6 +33,11 @@ const sidebarItems = [
     title: "Proctoring Logs",
     href: "/dashboard/proctoring",
     icon: ShieldAlert,
+  },
+  {
+    title: "Billing", // <--- New Item
+    href: "/dashboard/billing",
+    icon: CreditCard,
   },
   {
     title: "Settings",
@@ -82,7 +87,7 @@ export function Sidebar() {
         })}
       </div>
 
-      {/* Footer / Logout Area (Optional visual, real logout is in header) */}
+      {/* Footer Area */}
       <div className="p-4 border-t border-zinc-800">
         <div className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-800">
            <p className="text-xs text-zinc-500 font-mono">v1.0.0-beta</p>
