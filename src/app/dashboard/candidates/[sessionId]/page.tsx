@@ -3,17 +3,16 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
-import { format } from "date-fns";
 import { 
     ArrowLeft, 
     CheckCircle2, 
-    XCircle, 
     Clock, 
     ShieldAlert, 
     Bot, 
     User,
     AlertTriangle,
-    Download
+    Download,
+    Sparkles // New icon for AI Score
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -27,7 +26,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
 export default function CandidateResultPage() {
@@ -45,6 +43,7 @@ export default function CandidateResultPage() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setSession(res.data.data);
+            console.log(res.data.data);
         } catch (err) {
             toast.error("Error loading results");
         } finally {
@@ -68,10 +67,16 @@ export default function CandidateResultPage() {
     ? Math.floor((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / 60000) 
     : 0;
 
+  // --- NEW: Calculate Average AI Score ---
+  // If ai_score is missing, we treat it as 0 (Human) to be safe
+  const avgAiScore = transcript.length > 0 
+    ? transcript.reduce((acc, item) => acc + (item.ai_score || 0), 0) / transcript.length 
+    : 0;
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-10">
       
-      {/* --- Header --- */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
               <Button variant="ghost" className="pl-0 text-zinc-400 hover:text-white mb-2" onClick={() => router.back()}>
@@ -100,14 +105,17 @@ export default function CandidateResultPage() {
 
       {/* --- Key Metrics Grid --- */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          
+          {/* 1. Evaluation Score */}
           <Card className="bg-zinc-900 border-zinc-800">
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-zinc-400">Overall Score</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-zinc-400">Evaluation Score</CardTitle></CardHeader>
               <CardContent>
                   <div className="text-3xl font-bold text-white">{score.toFixed(1)}%</div>
-                  <Progress value={score} className={`h-2 mt-3 ${isPass ? "bg-emerald-900/50" : "bg-red-900/50"}`} indicatorColor={isPass ? "bg-emerald-500" : "bg-red-500"} />
+                  <Progress value={score} className="h-2 mt-3 bg-zinc-800" indicatorColor={isPass ? "bg-emerald-500" : "bg-red-500"} />
               </CardContent>
           </Card>
           
+          {/* 2. Trust Score (Proctoring) */}
           <Card className="bg-zinc-900 border-zinc-800">
               <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-zinc-400">Trust Score</CardTitle></CardHeader>
               <CardContent>
@@ -121,23 +129,41 @@ export default function CandidateResultPage() {
               </CardContent>
           </Card>
 
-          <Card className="bg-zinc-900 border-zinc-800 lg:col-span-2">
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-zinc-400">AI Summary</CardTitle></CardHeader>
+          {/* 3. NEW: AI Probability Score */}
+          <Card className="bg-zinc-900 border-zinc-800">
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-zinc-400">AI Probability</CardTitle></CardHeader>
+              <CardContent>
+                  <div className="flex items-baseline gap-2">
+                      <div className={`text-3xl font-bold ${avgAiScore < 30 ? "text-emerald-400" : avgAiScore < 70 ? "text-amber-400" : "text-red-400"}`}>
+                          {avgAiScore.toFixed(1)}%
+                      </div>
+                      <Sparkles className="w-4 h-4 text-zinc-500" />
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-2">
+                      Likelihood answers were AI-generated.
+                      <br/>
+                      <span className="text-zinc-600">(0% = Human, 100% = AI)</span>
+                  </p>
+              </CardContent>
+          </Card>
+
+          {/* 4. AI Summary */}
+          <Card className="bg-zinc-900 border-zinc-800">
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-zinc-400">Bot Summary</CardTitle></CardHeader>
               <CardContent>
                   <div className="flex gap-3">
                       <div className="mt-1"><Bot className="w-5 h-5 text-violet-400" /></div>
-                      <p className="text-sm text-zinc-300 leading-relaxed">
-                          The candidate demonstrated strong knowledge in <strong>{session.test.title}</strong> basics. 
-                          Key strengths identified in Questions 3 and 7. 
-                          However, answers regarding advanced concepts lacked depth. 
-                          {score > 80 ? "Highly recommended for next round." : "Consider a follow-up technical screen."}
+                      <p className="text-xs text-zinc-300 leading-relaxed line-clamp-3">
+                          Candidate showed {score > 80 ? "strong" : "moderate"} understanding. 
+                          {avgAiScore > 50 ? " High AI usage detected in responses." : " Answers appeared authentic."}
+                          {score > 80 ? " Recommended for next round." : " Needs review."}
                       </p>
                   </div>
               </CardContent>
           </Card>
       </div>
 
-      {/* --- Deep Dive Tabs --- */}
+      {/* --- Detailed Breakdown --- */}
       <Tabs defaultValue="transcript" className="w-full">
           <TabsList className="bg-zinc-900 border border-zinc-800">
               <TabsTrigger value="transcript">Transcript & Analysis</TabsTrigger>
@@ -153,23 +179,38 @@ export default function CandidateResultPage() {
                       <Accordion type="single" collapsible className="w-full">
                           {transcript.map((item: any, idx: number) => {
                               const itemScore = item.evaluation?.overall_score || 0;
-                              const isGood = itemScore >= 7; // Assuming 0-10 scale from RAG
+                              const aiScore = item.ai_score || 0;
+                              const isGood = itemScore >= 7; 
                               
+                              // Determine AI Badge Color
+                              let aiBadgeColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"; // Low AI (Human)
+                              if (aiScore > 70) aiBadgeColor = "bg-red-500/10 text-red-400 border-red-500/20"; // High AI
+                              else if (aiScore > 30) aiBadgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/20"; // Suspicious
+
                               return (
                                   <AccordionItem key={idx} value={`item-${idx}`} className="border-zinc-800">
                                       <AccordionTrigger className="hover:no-underline hover:bg-zinc-800/50 px-4 rounded-lg">
-                                          <div className="flex items-center gap-4 text-left w-full">
-                                              <Badge variant="outline" className={`w-8 h-8 rounded-full flex items-center justify-center p-0 ${isGood ? "border-emerald-500/50 text-emerald-400" : "border-amber-500/50 text-amber-400"}`}>
+                                          <div className="flex items-center gap-4 text-left w-full pr-4">
+                                              <Badge variant="outline" className={`min-w-8 h-8 rounded-full flex items-center justify-center p-0 ${isGood ? "border-emerald-500/50 text-emerald-400" : "border-amber-500/50 text-amber-400"}`}>
                                                   {itemScore}
                                               </Badge>
-                                              <span className="text-zinc-200 font-medium truncate flex-1">{item.question}</span>
+                                              <span className="text-zinc-200 font-medium truncate flex-1 text-wrap">{item.question}</span>
+                                              
+                                              {/* AI Score Badge in Header */}
+                                              <Badge variant="outline" className={`text-[10px] h-6 px-2 gap-1 ${aiBadgeColor}`}>
+                                                  <Sparkles className="w-3 h-3" />
+                                                  AI: {aiScore}%
+                                              </Badge>
                                           </div>
                                       </AccordionTrigger>
                                       <AccordionContent className="px-4 pb-6 pt-2">
                                           <div className="grid md:grid-cols-2 gap-6">
                                               <div className="space-y-2">
-                                                  <label className="text-xs font-semibold text-zinc-500 uppercase">Candidate Answer</label>
-                                                  <div className="p-3 bg-zinc-950 rounded border border-zinc-800 text-zinc-300 text-sm leading-relaxed">
+                                                  <label className="text-xs font-semibold text-zinc-500 uppercase flex justify-between">
+                                                      <span>Candidate Answer</span>
+                                                      <span className="text-zinc-600">{item.answer?.length || 0} chars</span>
+                                                  </label>
+                                                  <div className="p-3 bg-zinc-950 rounded border border-zinc-800 text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap">
                                                       {item.answer}
                                                   </div>
                                               </div>
@@ -178,12 +219,11 @@ export default function CandidateResultPage() {
                                                       <Bot className="w-3 h-3" /> AI Feedback
                                                   </label>
                                                   <div className="p-3 bg-violet-900/10 rounded border border-violet-500/20 text-zinc-300 text-sm leading-relaxed">
-                                                      {item.evaluation?.feedback || "No feedback generated."}
+                                                      {item.evaluation?.rationale || "No feedback generated."}
                                                   </div>
-                                                  {/* Optional: Show Improvements if available */}
                                                   {item.evaluation?.improvements && (
                                                       <div className="text-xs text-zinc-500 mt-2">
-                                                          <strong className="text-zinc-400">Better approach:</strong> {item.evaluation.improvements}
+                                                          <strong className="text-zinc-400">Better approach:</strong> {item.evaluation.improvements.map((imp:string, index:number) => <p>{index +1}. {imp}</p>)}
                                                       </div>
                                                   )}
                                               </div>
@@ -197,6 +237,7 @@ export default function CandidateResultPage() {
               </Card>
           </TabsContent>
 
+          {/* ... (Proctoring Tab remains same) ... */}
           <TabsContent value="proctoring" className="mt-6">
               <Card className="bg-zinc-900 border-zinc-800">
                   <CardHeader>

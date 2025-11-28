@@ -9,7 +9,7 @@ import {
   FileText,
   Users,
   Settings,
-  Shield, // <--- Changed from ShieldAlert
+  Shield,
   CreditCard
 } from "lucide-react";
 
@@ -30,9 +30,9 @@ const sidebarItems = [
     icon: Users,
   },
   {
-    title: "Proctoring Settings", // <--- Renamed
+    title: "Proctoring Settings",
     href: "/dashboard/proctoring",
-    icon: Shield, // <--- New Icon
+    icon: Shield,
   },
   {
     title: "Billing",
@@ -52,10 +52,17 @@ export function Sidebar() {
   return (
     <div className="w-64 border-r border-zinc-800 bg-black min-h-screen hidden md:flex flex-col">
       {/* Logo Area */}
-      <div className="h-16 flex items-center px-6 border-b border-zinc-800">
-        <div className="flex items-center gap-2 font-bold text-xl tracking-tight text-white">
-          <span className="w-3 h-3 rounded-full bg-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.5)]" />
-          EvaluateIX
+      <div className="h-16 flex items-center px-4 border-b border-zinc-800 overflow-hidden">
+        {/* mix-blend-screen: Makes the black background of the JPG transparent 
+            object-contain: Ensures the logo fits without stretching
+            object-left: Aligns the logo to the left
+        */}
+        <div className="relative w-48 h-12">
+            <img 
+                src="/evaluateIX_final_logo.png" 
+                alt="EvaluateIX" 
+                className="w-full h-full object-contain object-left mix-blend-screen filter brightness-110 contrast-125" 
+            />
         </div>
       </div>
 
